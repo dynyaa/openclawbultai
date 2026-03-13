@@ -3,9 +3,6 @@ providers = ["node"]
 [variables]
   NIXPACKS_NODE_VERSION = "22"
 
-[phases.setup]
-  cmds = ["corepack enable", "corepack prepare pnpm@latest --activate"]
-
 [phases.install]
   cmds = ["pnpm install"]
 
