@@ -23,7 +23,6 @@ ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:e8e2e91b1378f83c5b2dd15f0247f3411
 # Trade-off: digests must be updated manually when upstream tags move.
 # To update, run: docker buildx imagetools inspect node:24-bookworm (or podman)
 # and replace the digest below with the current multi-arch manifest list entry.
-
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS ext-deps
 ARG OPENCLAW_EXTENSIONS
 COPY extensions /tmp/extensions
@@ -69,7 +68,6 @@ RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/sto
     NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile
 
 COPY . .
-
 # Normalize extension paths now so runtime COPY preserves safe modes
 # without adding a second full extensions layer.
 RUN for dir in /app/extensions /app/.agent /app/.agents; do \
@@ -231,18 +229,7 @@ ENV NODE_ENV=production
 # This reduces the attack surface by preventing container escape via root privileges
 USER node
 
-# Start gateway server with default config.
-# Binds to loopback (127.0.0.1) by default for security.
-#
-# IMPORTANT: With Docker bridge networking (-p 18789:18789), loopback bind
-# makes the gateway unreachable from the host. Either:
-#   - Use --network host, OR
-#   - Override --bind to "lan" (0.0.0.0) and set auth credentials
-#
-# Built-in probe endpoints for container health checks:
-#   - GET /healthz (liveness) and GET /readyz (readiness)
-#   - aliases: /health and /ready
-# For external access from host/ingress, override bind to "lan" and set auth.
-HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
+# --- BULT.AI SPECIFIC OVERRIDES ---
+# We use 'exec' to ensure the Node process becomes PID 1 and reliably absorbs all Bult environment variables.
+# We override the bind to "lan" (0.0.0.0) so Bult.ai can route internet traffic to it.
+CMD exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port ${PORT:-18789}
